@@ -1,0 +1,199 @@
+@using GIBS.Module.DateTimeCalc.Services
+@using GIBS.Module.DateTimeCalc.Models
+@using System.Text
+
+@namespace GIBS.Module.DateTimeCalc
+@inherits ModuleBase
+@inject IDateTimeCalcService DateTimeCalcService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Index> Localizer
+
+@if (_DateTimeCalcs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    @if (_DateTimeCalcs.Any())
+    {
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            @foreach (var item in _DateTimeCalcs)
+            {
+                <div class="col">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">@item.Name</h5>
+                            <div>
+                                <ActionLink Action="Edit" Parameters="@($"id={item.DateTimeCalcId}")" Security="SecurityAccessLevel.Edit" IconName="pencil" IconOnly Class="btn btn-outline-secondary btn-sm" ResourceKey="Edit" />
+                                <ActionDialog Header="Delete DateTimeCalc" Message="Are You Sure You Wish To Delete This DateTimeCalc?" Action="Delete" IconName="delete" IconOnly Security="SecurityAccessLevel.Edit" Class="btn btn-danger btn-sm" OnClick="@(async () => await Delete(item))" ResourceKey="Delete" Id="@item.DateTimeCalcId.ToString()" />
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            @((MarkupString)FormatDateTimeContent(item))
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p>@Localizer["Message.DisplayNone"]</p>
+    }
+}
+
+<div class="mt-3">
+    <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Add DateTimeCalc" ResourceKey="Add" />
+</div>
+
+@code {
+    public override string RenderMode => RenderModes.Static;
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Resource { ResourceType = ResourceType.Stylesheet, Url = ModulePath() + "Module.css" },
+        new Resource { ResourceType = ResourceType.Script, Url = ModulePath() + "Module.js" }
+    };
+
+    private List<DateTimeCalc> _DateTimeCalcs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _DateTimeCalcs = await DateTimeCalcService.GetDateTimeCalcsAsync(ModuleState.ModuleId);
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading DateTimeCalc {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private string FormatDateTimeContent(DateTimeCalc item)
+    {
+        var startDate = item.StartDate ?? DateTime.Now;
+        var endDate = item.EndDate ?? DateTime.Now;
+
+        if (startDate > endDate)
+        {
+            // Swap dates if they are in the wrong order
+            var temp = startDate;
+            startDate = endDate;
+            endDate = temp;
+        }
+
+        TimeSpan span = endDate.Subtract(startDate);
+
+        // Accurate Year/Month/Day calculation
+        int dateYears = endDate.Year - startDate.Year;
+        int dateMonths = endDate.Month - startDate.Month;
+        int dateDays = endDate.Day - startDate.Day;
+
+        if (dateDays < 0)
+        {
+            dateMonths--;
+            dateDays += DateTime.DaysInMonth(startDate.Year, startDate.Month);
+        }
+
+        if (dateMonths < 0)
+        {
+            dateYears--;
+            dateMonths += 12;
+        }
+
+        int dateWeeks = dateDays / 7;
+        dateDays %= 7;
+
+        // Total calculations
+        double totalDays = span.TotalDays;
+        string totalYears = (totalDays / 365.2425).ToString("F2");
+        string totalMonths = (totalDays / (365.2425 / 12)).ToString("F2");
+        string totalWeeks = (totalDays / 7).ToString("F2");
+        string totalHours = span.TotalHours.ToString("N2");
+        string totalMinutes = span.TotalMinutes.ToString("N0");
+        string totalSeconds = span.TotalSeconds.ToString("N0");
+
+        if (!string.IsNullOrWhiteSpace(item.Template))
+        {
+            var template = item.Template;
+            template = template.Replace("[YEARS]", totalYears);
+            template = template.Replace("[MONTHS]", totalMonths);
+            template = template.Replace("[WEEKS]", totalWeeks);
+            template = template.Replace("[DAYS]", totalDays.ToString("N2"));
+            template = template.Replace("[HOURS]", totalHours);
+            template = template.Replace("[MINUTES]", totalMinutes);
+            template = template.Replace("[SECONDS]", totalSeconds);
+            // Add new tokens for accurate date parts
+            template = template.Replace("[DATE_YEARS]", dateYears.ToString());
+            template = template.Replace("[DATE_MONTHS]", dateMonths.ToString());
+            template = template.Replace("[DATE_WEEKS]", dateWeeks.ToString());
+            template = template.Replace("[DATE_DAYS]", dateDays.ToString());
+            return template;
+        }
+        else
+        {
+            var builder = new StringBuilder();
+            if (item.StartDate.HasValue)
+            {
+                builder.AppendLine($"<p><strong>{item.StartDate.Value.ToString("dddd, MMMM dd, yyyy")}</strong></p>");
+                builder.AppendLine("<p>It has been:</br>");
+            }
+            if (item.EndDate.HasValue)
+            {
+                builder.AppendLine($"<p><strong>{item.EndDate.Value.ToString("dddd, MMMM dd, yyyy h:mm tt")}</strong></p>");
+                builder.AppendLine("<p>Coming up in:</br>");
+            }
+
+            var parts = new List<string>();
+            if (dateYears > 0) parts.Add($"<strong>{dateYears}</strong> year{(dateYears > 1 ? "s" : "")}");
+            if (dateMonths > 0) parts.Add($"<strong>{dateMonths}</strong> month{(dateMonths > 1 ? "s" : "")}");
+            if (dateWeeks > 0) parts.Add($"<strong>{dateWeeks}</strong> week{(dateWeeks > 1 ? "s" : "")}");
+            if (dateDays > 0) parts.Add($"<strong>{dateDays}</strong> day{(dateDays > 1 ? "s" : "")}");
+
+            if (parts.Any())
+            {
+                string result;
+                if (parts.Count > 2)
+                {
+                    var lastPart = parts.Last();
+                    parts.RemoveAt(parts.Count - 1);
+                    result = string.Join(", ", parts) + $", and {lastPart}";
+                }
+                else
+                {
+                    result = string.Join(" and ", parts);
+                }
+                builder.AppendLine($"{result}.</p>");
+            }
+
+            builder.AppendLine("<p>Or in total:</p>");
+            builder.AppendLine("<ul>");
+            if (item.ShowYears) builder.AppendLine($"<li>{totalYears} years</li>");
+            if (item.ShowMonths) builder.AppendLine($"<li>{totalMonths} months</li>");
+            if (item.ShowWeeks) builder.AppendLine($"<li>{totalWeeks} weeks</li>");
+            if (item.ShowDays) builder.AppendLine($"<li>{totalDays.ToString("N2")} days</li>");
+            if (item.ShowHours) builder.AppendLine($"<li>{totalHours} hours</li>");
+            if (item.ShowMinutes) builder.AppendLine($"<li>{totalMinutes} minutes</li>");
+            if (item.ShowSeconds) builder.AppendLine($"<li>{totalSeconds} seconds</li>");
+            builder.AppendLine("</ul>");
+            return builder.ToString();
+        }
+    }
+
+    private async Task Delete(DateTimeCalc DateTimeCalc)
+    {
+        try
+        {
+            await DateTimeCalcService.DeleteDateTimeCalcAsync(DateTimeCalc.DateTimeCalcId, ModuleState.ModuleId);
+            await logger.LogInformation("DateTimeCalc Deleted {DateTimeCalc}", DateTimeCalc);
+            _DateTimeCalcs = await DateTimeCalcService.GetDateTimeCalcsAsync(ModuleState.ModuleId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting DateTimeCalc {DateTimeCalc} {Error}", DateTimeCalc, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+}
