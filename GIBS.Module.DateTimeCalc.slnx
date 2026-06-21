@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="../oqtane.framework-6.1.2-Source/Oqtane.Server/Oqtane.Server.csproj">
+    <Build Project="false" />
+  </Project>
+  <Project Path="Client/GIBS.Module.DateTimeCalc.Client.csproj" />
+  <Project Path="Package/GIBS.Module.DateTimeCalc.Package.csproj" />
+  <Project Path="Server/GIBS.Module.DateTimeCalc.Server.csproj" />
+  <Project Path="Shared/GIBS.Module.DateTimeCalc.Shared.csproj" />
+</Solution>
