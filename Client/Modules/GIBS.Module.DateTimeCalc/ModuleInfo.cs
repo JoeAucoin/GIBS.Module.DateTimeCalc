@@ -9,9 +9,9 @@ namespace GIBS.Module.DateTimeCalc
         {
             Name = "DateTimeCalc",
             Description = "Date Time Calculator",
-            Version = "1.0.1",
+            Version = "1.0.2",
             ServerManagerType = "GIBS.Module.DateTimeCalc.Manager.DateTimeCalcManager, GIBS.Module.DateTimeCalc.Server.Oqtane",
-            ReleaseVersions = "1.0.0,1.0.1",
+            ReleaseVersions = "1.0.0,1.0.1,1.0.2",
             Dependencies = "GIBS.Module.DateTimeCalc.Shared.Oqtane",
             PackageName = "GIBS.Module.DateTimeCalc" 
         };
